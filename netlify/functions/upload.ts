@@ -1,3 +1,4 @@
+import { Readable } from 'stream'
 import type { Handler } from '@netlify/functions'
 import { google } from 'googleapis'
 import parser, { type MultipartFile } from 'lambda-multipart-parser'
@@ -9,22 +10,19 @@ const decodeFile = (file: MultipartFile) => {
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB por archivo recomendado
 
-const driveScopes = ['https://www.googleapis.com/auth/drive.file']
-
 const createDriveClient = () => {
-    const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-    const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+    const clientId = process.env.GOOGLE_CLIENT_ID
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID
 
-    if (!email || !privateKey || !folderId) {
+    if (!clientId || !clientSecret || !refreshToken || !folderId) {
         throw new Error('Faltan variables de entorno para conectarse a Google Drive.')
     }
 
-    const auth = new google.auth.JWT({
-        email,
-        key: privateKey.replace(/\\n/g, '\n'),
-        scopes: driveScopes,
-    })
+    const auth = new google.auth.OAuth2(clientId, clientSecret)
+    auth.setCredentials({ refresh_token: refreshToken })
+
     const drive = google.drive({ version: 'v3', auth })
 
     return { drive, folderId }
@@ -78,7 +76,7 @@ export const handler: Handler = async (event) => {
                 },
                 media: {
                     mimeType: meta.contentType,
-                    body: buffer,
+                    body: Readable.from(buffer),
                 },
                 fields: 'id, name, webViewLink',
             })
