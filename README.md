@@ -1,71 +1,95 @@
-# React + TypeScript + Vite
+# Formulario de Boda - Subida de Fotos a Drive
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación web mobile-first construida con React + TypeScript + Vite. Permite a los invitados dejar mensajes y subir fotos o videos que se guardan automáticamente en una carpeta de tu Google Drive personal.
 
-Currently, two official plugins are available:
+## Características
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 🎨 Diseño moderno y responsive.
+- 📝 Formulario validado con `react-hook-form` y `zod`.
+- 📁 Carga de archivos con Drag & Drop y previsualización.
+- ☁️ Función serverless (`netlify/functions/upload.ts`) para subir archivos a Google Drive.
+- 🔐 Integración segura con Google Drive usando OAuth 2.0 (sin Service Accounts).
 
-## React Compiler
+## Configuración de Google Drive (OAuth 2.0)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Para que la aplicación pueda subir archivos a tu Drive, necesitas configurar un proyecto en Google Cloud y autorizarlo.
 
-## Expanding the ESLint configuration
+### 1. Crear Proyecto y Credenciales
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. Ve a [Google Cloud Console](https://console.cloud.google.com/).
+2. Crea un nuevo proyecto (ej: "Boda Uploads").
+3. En el buscador, escribe **"Google Drive API"**, selecciónala y dale a **Habilitar**.
+4. Ve a **APIs y servicios** > **Pantalla de consentimiento de OAuth**:
+   - Selecciona **Externo**.
+   - Rellena los datos obligatorios (nombre de la app, emails).
+   - **IMPORTANTE:** En la sección **"Usuarios de prueba" (Test users)**, añade tu propio correo de Gmail (el dueño del Drive).
+5. Ve a **Credenciales** > **+ CREAR CREDENCIALES** > **ID de cliente de OAuth 2.0**:
+   - Tipo de aplicación: **App de escritorio**.
+   - Dale un nombre y crea la credencial.
+   - Copia el **ID de cliente** y el **Secreto de cliente**.
 
-```js
-export default defineConfig([
-  # Formulario de boda
+### 2. Generar el Refresh Token
 
-  Landing mobile-first construida con React + TypeScript + Vite. Incluye un formulario accesible para capturar nombres, mensajes y subir fotos o videos que terminan en una carpeta privada de Google Drive a través de una función serverless de Netlify.
+Hemos incluido un script para facilitar este paso. En tu terminal ejecuta:
 
-  ## Características
+```bash
+node scripts/auth-google.js
+```
 
-  - Diseño responsive con gradientes suaves y componentes reutilizables.
-  - Manejo de formulario con `react-hook-form` + `zod` para validaciones amistosas.
-  - Componente de carga con drag & drop y límite configurable de archivos.
-  - Función serverless (`netlify/functions/upload.ts`) que usa un Service Account de Google para escribir en Drive.
-  - Configuración lista para desplegar en Netlify (build command, funciones y variables de entorno).
+Sigue las instrucciones: pega el ID y Secreto que copiaste, abre el link que te dará, autoriza la app con tu cuenta de Gmail y copia el código que te devuelva Google.
 
-  ## Variables de entorno
+El script te mostrará las variables exactas que necesitas.
 
-  Copia `.env.example` en `.env` y llena los valores:
+### 3. Configurar Variables de Entorno
 
-  ```
-  VITE_UPLOAD_ENDPOINT=/.netlify/functions/upload
-  GOOGLE_SERVICE_ACCOUNT_EMAIL=tu-servicio@project.iam.gserviceaccount.com
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nTU_CLAVE_AQUI\n-----END PRIVATE KEY-----\n"
-  GOOGLE_DRIVE_FOLDER_ID=xxxxxxxxxxxxxxxxxxxx
-  ```
+Crea un archivo `.env` en la raíz del proyecto (puedes copiar `.env.example` si existe) y configura las siguientes variables:
 
-  > En Netlify deberás registrar las mismas variables en la sección **Site Settings → Environment variables**. Nunca compartas la clave privada en texto plano fuera de los entornos seguros.
+```dotenv
+# URL de la función serverless (local o producción)
+VITE_UPLOAD_ENDPOINT=/.netlify/functions/upload
 
-  ### Cómo obtener las credenciales de Google
+# Credenciales de Google (obtenidas en el paso anterior)
+GOOGLE_CLIENT_ID=tu-client-id
+GOOGLE_CLIENT_SECRET=tu-client-secret
+GOOGLE_REFRESH_TOKEN=tu-refresh-token
 
-  1. En [Google Cloud Console](https://console.cloud.google.com/) crea un proyecto y habilita la **Google Drive API**.
-  2. En **APIs & Services → Credentials** crea un **Service Account** y genera una clave tipo JSON.
-  3. Copia `client_email` y `private_key` al `.env` (respeta los saltos de línea usando `\n`).
-  4. En Google Drive crea la carpeta destino, copia su ID (parte final de la URL) y agrégala al `.env` como `GOOGLE_DRIVE_FOLDER_ID`.
-  5. Comparte esa carpeta con el correo del Service Account con permiso de editor.
+# ID de la carpeta de destino en Drive
+# (Es el código al final de la URL cuando entras a la carpeta en el navegador)
+GOOGLE_DRIVE_FOLDER_ID=xxxxxxxxxxxxxxxxxxxx
+```
 
-  ## Scripts
+## Desarrollo Local
 
-  - `npm run dev` – Levanta Vite en `http://localhost:5173`.
-  - `netlify dev` – (opcional) Levanta Vite + funciones serverless en caliente.
-  - `npm run build` – Compila la app y la función para producción.
-  - `npm run preview` – Sirve la versión generada en `dist/`.
+Para probar la aplicación completa (frontend + subida de archivos), debes usar el entorno de Netlify, ya que Vite por sí solo no ejecuta las funciones serverless.
 
-  ## Flujo de despliegue
+1. Instala las dependencias:
+   ```bash
+   npm install
+   ```
 
-  1. Conecta el repositorio en Netlify y selecciona la rama `main`.
-  2. Configura las variables de entorno anteriores.
-  3. Netlify ejecutará `npm run build`, publicará `dist/` y expondrá la función `/.netlify/functions/upload`.
+2. Inicia el servidor de desarrollo:
+   ```bash
+   npm run dev:netlify
+   ```
+   Esto abrirá la aplicación en `http://localhost:8888`.
 
-  ## Límites y recomendaciones
+## Despliegue en Netlify
 
-  - Netlify Functions acepta payloads de hasta 10MB; se recomienda subir archivos individuales menores a 50MB por la conversión base64.
-  - Para colecciones más pesadas considera mover la lógica a un backend dedicado o a la API de Uploads de Drive con sesiones resumibles.
-  - Mantén el Service Account aislado a una carpeta específica y revoca permisos cuando finalice el evento.
-  },
+1. Conecta tu repositorio a Netlify.
+2. En la configuración del sitio en Netlify, ve a **Site configuration** > **Environment variables**.
+3. Agrega las mismas 4 variables de Google (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_DRIVE_FOLDER_ID`).
+4. ¡Listo! Netlify detectará automáticamente la configuración y desplegará el frontend y la función.
+
+## Estructura del Proyecto
+
+```
+src/
+  components/    # Componentes React (Formulario, Uploader, etc.)
+  hooks/         # Hooks personalizados (useFileQueue)
+  styles/        # Estilos globales CSS
+  types/         # Definiciones de tipos TypeScript
+netlify/
+  functions/     # Código del backend (upload.ts)
+scripts/
+  auth-google.js # Script de utilidad para generar tokens
+```
