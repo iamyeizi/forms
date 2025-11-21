@@ -89,6 +89,7 @@ const WeddingForm = () => {
                 files={files}
                 onFilesAdded={addFiles}
                 onRemove={removeFile}
+                onClear={clearFiles}
                 remainingSlots={remainingSlots}
                 accept="image/jpeg,image/png,image/heic,image/heif,video/mp4,video/quicktime"
             />

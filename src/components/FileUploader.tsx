@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import classNames from 'classnames'
 import type { PendingUploadFile } from '@/types/uploads'
 import { formatBytes } from '@/utils/file'
@@ -7,6 +8,7 @@ interface FileUploaderProps {
     files: PendingUploadFile[]
     onFilesAdded: (files: FileList | File[]) => void
     onRemove: (id: string) => void
+    onClear?: () => void
     remainingSlots: number
     accept?: string
 }
@@ -23,7 +25,7 @@ const ACCEPTED_MIME_TYPES = new Set([
 const ACCEPTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.mp4', '.mov']
 const PREVIEW_SLOTS = 7
 
-const FileUploader = ({ files, onFilesAdded, onRemove, remainingSlots, accept }: FileUploaderProps) => {
+const FileUploader = ({ files, onFilesAdded, onRemove, onClear, remainingSlots, accept }: FileUploaderProps) => {
     const inputRef = useRef<HTMLInputElement>(null)
     const [isDragging, setIsDragging] = useState(false)
     const [isListExpanded, setIsListExpanded] = useState(false)
@@ -219,7 +221,7 @@ const FileUploader = ({ files, onFilesAdded, onRemove, remainingSlots, accept }:
                 </div>
             </div>
 
-            {isListExpanded && (
+            {isListExpanded && createPortal(
                 <div className="file-modal" role="dialog" aria-modal="true" aria-labelledby="file-modal-title" id="file-modal">
                     <div className="file-modal__backdrop" aria-hidden="true" onClick={() => setIsListExpanded(false)} />
                     <div className="file-modal__panel" role="document">
@@ -228,7 +230,27 @@ const FileUploader = ({ files, onFilesAdded, onRemove, remainingSlots, accept }:
                                 <p className="file-modal__title" id="file-modal-title">
                                     Archivos seleccionados
                                 </p>
-                                <p className="field__hint">{selectionSummary}</p>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <p className="field__hint" style={{ margin: 0 }}>{selectionSummary}</p>
+                                    {files.length > 0 && onClear && (
+                                        <button
+                                            type="button"
+                                            onClick={onClear}
+                                            style={{
+                                                background: 'none',
+                                                border: 'none',
+                                                padding: 0,
+                                                color: 'var(--accent-strong)',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                textDecoration: 'underline',
+                                            }}
+                                        >
+                                            Borrar todo
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <button type="button" className="file-modal__close" onClick={() => setIsListExpanded(false)} aria-label="Cerrar lista">
                                 ×
@@ -257,7 +279,8 @@ const FileUploader = ({ files, onFilesAdded, onRemove, remainingSlots, accept }:
                             )}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     )
