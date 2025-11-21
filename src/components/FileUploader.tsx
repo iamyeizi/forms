@@ -21,7 +21,7 @@ const ACCEPTED_MIME_TYPES = new Set([
 ])
 
 const ACCEPTED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.heic', '.heif', '.mp4', '.mov']
-const PREVIEW_SLOTS = 6
+const PREVIEW_SLOTS = 7
 
 const FileUploader = ({ files, onFilesAdded, onRemove, remainingSlots, accept }: FileUploaderProps) => {
     const inputRef = useRef<HTMLInputElement>(null)
