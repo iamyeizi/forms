@@ -6,7 +6,7 @@ const createId = () =>
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-const createPreview = (file: File) => (file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined)
+const createPreview = (file: File) => (file.type.startsWith('image/') || file.type.startsWith('video/') ? URL.createObjectURL(file) : undefined)
 
 export const useFileQueue = (maxFiles = Number.POSITIVE_INFINITY) => {
     const [files, setFiles] = useState<PendingUploadFile[]>([])

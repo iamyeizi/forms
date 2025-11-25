@@ -94,6 +94,27 @@ const FileUploader = ({ files, onFilesAdded, onRemove, onClear, remainingSlots, 
 
     const renderPreviewContent = (entry: PendingUploadFile, variant: 'grid' | 'list' = 'grid') => {
         if (entry.previewUrl) {
+            if (entry.file.type.startsWith('video/')) {
+                return (
+                    <video
+                        src={entry.previewUrl}
+                        className={variant === 'grid' ? 'file-preview__thumb' : 'file-row__thumb'}
+                        muted
+                        playsInline
+                        onMouseOver={(e) => e.currentTarget.play()}
+                        onMouseOut={(e) => {
+                            e.currentTarget.pause()
+                            e.currentTarget.currentTime = 0
+                        }}
+                        onTimeUpdate={(e) => {
+                            // Loop de los primeros 5 segundos para vista previa
+                            if (e.currentTarget.currentTime > 5) {
+                                e.currentTarget.currentTime = 0
+                            }
+                        }}
+                    />
+                )
+            }
             return (
                 <img
                     src={entry.previewUrl}
