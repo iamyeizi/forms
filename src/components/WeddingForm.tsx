@@ -24,6 +24,7 @@ const WeddingForm = () => {
     const [status, setStatus] = useState<UploadStatus | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [uploadProgress, setUploadProgress] = useState<Record<string, FileUploadState>>({})
+    const [fileProgress, setFileProgress] = useState<Record<string, number>>({})
     const [showProgressModal, setShowProgressModal] = useState(false)
 
     const { files, addFiles, removeFile, remainingSlots, clearFiles } = useFileQueue()
@@ -55,8 +56,13 @@ const WeddingForm = () => {
 
         // Initialize progress
         const initialProgress: Record<string, FileUploadState> = {}
-        files.forEach((f) => (initialProgress[f.id] = 'pending'))
+        const initialFileProgress: Record<string, number> = {}
+        files.forEach((f) => {
+            initialProgress[f.id] = 'pending'
+            initialFileProgress[f.id] = 0
+        })
         setUploadProgress(initialProgress)
+        setFileProgress(initialFileProgress)
 
         if (files.length > 0) {
             setShowProgressModal(true)
@@ -85,15 +91,29 @@ const WeddingForm = () => {
 
                         const { uploadUrl } = await initRes.json()
 
-                        // B. Subir el archivo directamente a Google
-                        const uploadRes = await fetch(uploadUrl, {
-                            method: 'PUT',
-                            body: entry.file,
-                        })
+                        // B. Subir el archivo directamente a Google usando XHR para progreso
+                        await new Promise<void>((resolve, reject) => {
+                            const xhr = new XMLHttpRequest()
+                            xhr.open('PUT', uploadUrl)
 
-                        if (!uploadRes.ok) {
-                            throw new Error(`Fallo al subir ${entry.file.name} a Drive`)
-                        }
+                            xhr.upload.onprogress = (e) => {
+                                if (e.lengthComputable) {
+                                    const percent = Math.round((e.loaded / e.total) * 100)
+                                    setFileProgress((prev) => ({ ...prev, [entry.id]: percent }))
+                                }
+                            }
+
+                            xhr.onload = () => {
+                                if (xhr.status >= 200 && xhr.status < 300) {
+                                    resolve()
+                                } else {
+                                    reject(new Error('Upload failed'))
+                                }
+                            }
+
+                            xhr.onerror = () => reject(new Error('Network error'))
+                            xhr.send(entry.file)
+                        })
 
                         setUploadProgress((prev) => ({ ...prev, [entry.id]: 'success' }))
                         return true
@@ -209,6 +229,7 @@ const WeddingForm = () => {
             <UploadProgressModal
                 files={files}
                 progress={uploadProgress}
+                fileProgress={fileProgress}
                 isOpen={showProgressModal}
                 onClose={() => setShowProgressModal(false)}
                 isFinished={!isSubmitting}

@@ -4,12 +4,13 @@ import type { PendingUploadFile, FileUploadState } from '@/types/uploads'
 interface UploadProgressModalProps {
     files: PendingUploadFile[]
     progress: Record<string, FileUploadState>
+    fileProgress: Record<string, number>
     isOpen: boolean
     onClose: () => void
     isFinished: boolean
 }
 
-const UploadProgressModal = ({ files, progress, isOpen, onClose, isFinished }: UploadProgressModalProps) => {
+const UploadProgressModal = ({ files, progress, fileProgress, isOpen, onClose, isFinished }: UploadProgressModalProps) => {
     if (!isOpen) return null
 
     const hasErrors = Object.values(progress).some((s) => s === 'error')
@@ -38,7 +39,7 @@ const UploadProgressModal = ({ files, progress, isOpen, onClose, isFinished }: U
                                         <span className="file-row__name">{entry.file.name}</span>
                                         <span className="file-row__size">
                                             {status === 'pending' && 'En espera...'}
-                                            {status === 'uploading' && 'Subiendo...'}
+                                            {status === 'uploading' && `Subiendo ${fileProgress[entry.id] || 0}%...`}
                                             {status === 'success' && 'Completado'}
                                             {status === 'error' && 'Error'}
                                         </span>
