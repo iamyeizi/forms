@@ -83,6 +83,7 @@ const handler: Handler = async (event) => {
                     </div>
                     ` : ''}
 
+                    ${fileCount > 0 ? `
                     <div class="stats">
                         <span class="stat-badge">${fileCount} archivo${fileCount !== 1 ? 's' : ''} subido${fileCount !== 1 ? 's' : ''}</span>
                     </div>
@@ -90,6 +91,7 @@ const handler: Handler = async (event) => {
                     <div style="text-align: center;">
                         <a href="${driveLink}" class="btn">Ver archivos en Google Drive</a>
                     </div>
+                    ` : ''}
                 </div>
                 <div class="footer">
                     Este correo fue enviado automáticamente desde la web de la boda.

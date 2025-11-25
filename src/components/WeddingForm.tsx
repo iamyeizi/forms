@@ -12,7 +12,7 @@ const formSchema = z.object({
     fullName: z.string().min(2, 'Tu nombre debe tener al menos 2 caracteres.').max(120, 'Mantén el nombre debajo de 120 caracteres.'),
     message: z
         .string()
-        .max(400, 'El mensaje puede tener hasta 400 caracteres.')
+        .max(500, 'El mensaje puede tener hasta 500 caracteres.')
         .refine((value) => value.trim().length === 0 || value.trim().length >= 10, {
             message: 'Si vas a dejar un mensajito, escribí al menos 10 caracteres.',
         }),
@@ -35,6 +35,7 @@ const WeddingForm = () => {
         register,
         handleSubmit,
         reset,
+        watch,
         formState: { errors },
     } = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -43,6 +44,10 @@ const WeddingForm = () => {
             message: '',
         },
     })
+
+    const messageValue = watch('message')
+    const messageLength = messageValue?.length || 0
+    const isMessageTooLong = messageLength >= 500
 
     const onSubmit = handleSubmit(async (values) => {
         setIsSubmitting(true)
@@ -101,28 +106,6 @@ const WeddingForm = () => {
             )
 
             const allSuccess = results.every(Boolean)
-
-            // 2. Si no hay archivos, podríamos querer guardar el mensaje igual.
-            if (files.length === 0 && (values.fullName || values.message)) {
-                // Caso borde: Solo texto. Creamos un .txt
-                const initRes = await fetch(uploadEndpoint, {
-                    method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({
-                         name: `mensaje-${values.fullName.replace(/\s+/g, '-')}.txt`,
-                         mimeType: 'text/plain',
-                         description: 'Mensaje de texto sin fotos',
-                     }),
-                 })
-
-                if (initRes.ok) {
-                    const { uploadUrl } = await initRes.json()
-                    await fetch(uploadUrl, {
-                        method: 'PUT',
-                        body: `Nombre: ${values.fullName}\nMensaje: ${values.message}`,
-                    })
-                }
-            }
 
             if (files.length > 0) {
                 if (allSuccess) {
@@ -185,8 +168,22 @@ const WeddingForm = () => {
 
             <div className="field">
                 <label htmlFor="message">Mensaje</label>
-                <textarea id="message" placeholder="Dejanos un mensajito o contanos alguna anécdota de la fiesta" {...register('message')} />
-                {errors.message && <span className="error-text">{errors.message.message}</span>}
+                <textarea
+                    id="message"
+                    placeholder="Dejanos un mensajito o contanos alguna anécdota de la fiesta"
+                    maxLength={500}
+                    {...register('message')}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                    {errors.message ? (
+                        <span className="error-text">{errors.message.message}</span>
+                    ) : (
+                        <span />
+                    )}
+                    <span style={{ color: isMessageTooLong ? 'var(--accent-strong)' : 'var(--muted)' }}>
+                        {messageLength}/500
+                    </span>
+                </div>
             </div>
 
             <FileUploader
@@ -199,7 +196,11 @@ const WeddingForm = () => {
             />
 
             <div className="actions">
-                <button className="primary-button" type="submit" disabled={isSubmitting}>
+                <button
+                    className="primary-button"
+                    type="submit"
+                    disabled={isSubmitting || (files.length === 0 && messageLength === 0)}
+                >
                     {isSubmitting ? 'Enviando...' : 'Enviar'}
                 </button>
                 <StatusBanner status={status} onDismiss={() => setStatus(null)} />
