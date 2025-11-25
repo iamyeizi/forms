@@ -1,14 +1,5 @@
-import { Readable } from 'stream'
 import type { Handler } from '@netlify/functions'
 import { google } from 'googleapis'
-import parser, { type MultipartFile } from 'lambda-multipart-parser'
-
-const decodeFile = (file: MultipartFile) => {
-    const base64Payload = typeof file.content === 'string' ? file.content : file.content.toString('base64')
-    return Buffer.from(base64Payload, 'base64')
-}
-
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB por archivo recomendado
 
 const createDriveClient = () => {
     const clientId = process.env.GOOGLE_CLIENT_ID
@@ -39,66 +30,69 @@ export const handler: Handler = async (event) => {
 
     try {
         const { drive, folderId } = createDriveClient()
-        const parsed = await parser.parse(event)
+        const body = JSON.parse(event.body || '{}')
+        const { name, description, mimeType } = body
+        const origin = event.headers['origin'] || event.headers['Origin']
 
-        const files = (parsed.files ?? []) as MultipartFile[]
-        if (!files.length) {
+        if (!name) {
             return {
                 statusCode: 400,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: 'Agrega al menos un archivo.' }),
+                body: JSON.stringify({ message: 'Falta el nombre del archivo' }),
             }
         }
 
-        const hydratedFiles = files.map((file) => ({ meta: file, buffer: decodeFile(file) }))
+        // Iniciamos una sesión de subida resumible (Resumable Upload)
+        // Usamos el token generado por la librería para autenticar nuestro fetch manual
+        const token = await drive.context._options.auth.getAccessToken()
 
-        const oversized = hydratedFiles.find((entry) => entry.buffer.byteLength > MAX_FILE_SIZE)
-        if (oversized) {
-            return {
-                statusCode: 413,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: `"${oversized.meta.filename}" excede el límite de 50MB.` }),
-            }
+        const headers: Record<string, string> = {
+            'Authorization': `Bearer ${token.token}`,
+            'Content-Type': 'application/json',
+            'X-Upload-Content-Type': mimeType,
         }
 
-        const metadataParts = [parsed.fullName, parsed.message]
-            .filter(Boolean)
-            .join(' · ')
+        // Importante: Pasamos el Origin del cliente para que Google configure CORS en la URL de subida
+        if (origin) {
+            headers['Origin'] = origin
+        }
 
-        const uploaded = []
-
-        for (const { meta, buffer } of hydratedFiles) {
-            const response = await drive.files.create({
-                requestBody: {
-                    name: `${Date.now()}-${meta.filename}`,
-                    description: metadataParts || 'Subido desde formulario',
-                    parents: [folderId],
-                },
-                media: {
-                    mimeType: meta.contentType,
-                    body: Readable.from(buffer),
-                },
-                fields: 'id, name, webViewLink',
+        const initRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+                name: `${Date.now()}-${name}`,
+                description: description || 'Subido desde formulario',
+                parents: [folderId],
+                mimeType,
             })
+        })
 
-            uploaded.push(response.data)
+        if (!initRes.ok) {
+            throw new Error(`Error iniciando subida: ${initRes.statusText}`)
+        }
+
+        const uploadUrl = initRes.headers.get('Location')
+
+        if (!uploadUrl) {
+            throw new Error('No se recibió la URL de subida de Google.')
         }
 
         return {
             statusCode: 200,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message: 'Archivos cargados con éxito',
-                files: uploaded,
-            }),
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': origin || '*', // CORS para la respuesta de Netlify
+            },
+            body: JSON.stringify({ uploadUrl }),
         }
+
     } catch (error) {
-        console.error(error)
+        console.error('Error en upload function:', error)
         return {
             statusCode: 500,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: error instanceof Error ? error.message : 'Fallo al subir tus archivos',
+                message: error instanceof Error ? error.message : 'Fallo al iniciar la subida',
             }),
         }
     }

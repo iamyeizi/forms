@@ -44,31 +44,72 @@ const WeddingForm = () => {
         setStatus(null)
 
         try {
-            const formData = new FormData()
-            formData.append('fullName', values.fullName)
-            formData.append('message', values.message)
+            // 1. Subir archivos usando Resumable Uploads (Directo a Google)
+            const uploadPromises = files.map(async (entry) => {
+                // A. Pedir URL de subida al backend
+                const initRes = await fetch(uploadEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: entry.file.name,
+                        mimeType: entry.file.type,
+                        description: `${values.fullName} · ${values.message || 'Sin mensaje'}`,
+                    }),
+                })
 
-            files.forEach((entry) => {
-                formData.append('files', entry.file, entry.file.name)
+                if (!initRes.ok) {
+                    throw new Error(`Error iniciando subida para ${entry.file.name}`)
+                }
+
+                const { uploadUrl } = await initRes.json()
+
+                // B. Subir el archivo directamente a Google
+                const uploadRes = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    body: entry.file,
+                })
+
+                if (!uploadRes.ok) {
+                    throw new Error(`Fallo al subir ${entry.file.name} a Drive`)
+                }
             })
 
-            const response = await fetch(uploadEndpoint, {
-                method: 'POST',
-                body: formData,
-            })
+            // 2. Si no hay archivos, podríamos querer guardar el mensaje igual.
+            // Por ahora, si no hay archivos, no hacemos nada con Drive, o podríamos crear un archivo de texto.
+            // Dado que el form pide archivos opcionalmente (según tu último cambio no, pero el uploader sí),
+            // asumimos que si hay texto y no archivos, queremos guardarlo.
 
-            if (!response.ok) {
-                const payload = await response.json().catch(() => ({ message: 'Error desconocido' }))
-                throw new Error(payload.message ?? 'No pudimos cargar tus archivos. Intenta nuevamente.')
+            if (files.length === 0 && (values.fullName || values.message)) {
+                // Caso borde: Solo texto. Creamos un .txt
+                const initRes = await fetch(uploadEndpoint, {
+                    method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({
+                         name: `mensaje-${values.fullName.replace(/\s+/g, '-')}.txt`,
+                         mimeType: 'text/plain',
+                         description: 'Mensaje de texto sin fotos',
+                     }),
+                 })
+
+                if (initRes.ok) {
+                    const { uploadUrl } = await initRes.json()
+                    await fetch(uploadUrl, {
+                        method: 'PUT',
+                        body: `Nombre: ${values.fullName}\nMensaje: ${values.message}`,
+                    })
+                }
+            } else {
+                await Promise.all(uploadPromises)
             }
 
             setStatus({
                 type: 'success',
-                message: '¡Listo! Registramos tus datos y empezamos a guardar tus archivos.',
+                message: '¡Listo! Tus datos han sido enviados con éxito.',
             })
             reset()
             clearFiles()
         } catch (error) {
+            console.error(error)
             const message = error instanceof Error ? error.message : 'No pudimos subir tus archivos.'
             setStatus({ type: 'error', message })
         } finally {
@@ -103,7 +144,7 @@ const WeddingForm = () => {
                 <button className="primary-button" type="submit" disabled={isSubmitting}>
                     {isSubmitting ? 'Enviando...' : 'Enviar'}
                 </button>
-                <StatusBanner status={status} />
+                <StatusBanner status={status} onDismiss={() => setStatus(null)} />
             </div>
         </form>
     )
