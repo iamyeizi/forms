@@ -16,7 +16,7 @@ const createDriveClient = () => {
 
     const drive = google.drive({ version: 'v3', auth })
 
-    return { drive, folderId }
+    return { drive, folderId, auth }
 }
 
 export const handler: Handler = async (event) => {
@@ -29,7 +29,7 @@ export const handler: Handler = async (event) => {
     }
 
     try {
-        const { drive, folderId } = createDriveClient()
+        const { folderId, auth } = createDriveClient()
         const body = JSON.parse(event.body || '{}')
         const { name, description, mimeType } = body
         const origin = event.headers['origin'] || event.headers['Origin']
@@ -43,10 +43,15 @@ export const handler: Handler = async (event) => {
 
         // Iniciamos una sesión de subida resumible (Resumable Upload)
         // Usamos el token generado por la librería para autenticar nuestro fetch manual
-        const token = await drive.context._options.auth.getAccessToken()
+        const tokenResponse = await auth.getAccessToken()
+        const accessToken = tokenResponse.token
+
+        if (!accessToken) {
+            throw new Error('No se pudo obtener el token de acceso.')
+        }
 
         const headers: Record<string, string> = {
-            'Authorization': `Bearer ${token.token}`,
+            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
             'X-Upload-Content-Type': mimeType,
         }
@@ -77,12 +82,14 @@ export const handler: Handler = async (event) => {
             throw new Error('No se recibió la URL de subida de Google.')
         }
 
+        const responseHeaders: Record<string, string | number | boolean> = {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': origin || '*',
+        }
+
         return {
             statusCode: 200,
-            headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': origin || '*', // CORS para la respuesta de Netlify
-            },
+            headers: responseHeaders,
             body: JSON.stringify({ uploadUrl }),
         }
 

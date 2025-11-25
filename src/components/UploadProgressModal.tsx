@@ -1,5 +1,4 @@
 import { createPortal } from 'react-dom'
-import classNames from 'classnames'
 import type { PendingUploadFile, FileUploadState } from '@/types/uploads'
 
 interface UploadProgressModalProps {
