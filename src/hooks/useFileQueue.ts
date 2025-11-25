@@ -6,7 +6,13 @@ const createId = () =>
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-const createPreview = (file: File) => (file.type.startsWith('image/') || file.type.startsWith('video/') ? URL.createObjectURL(file) : undefined)
+const createPreview = (file: File) => {
+    // Detección robusta: por tipo MIME o por extensión (para iOS .mov)
+    const isImage = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|mov|quicktime)$/i.test(file.name)
+
+    return isImage || isVideo ? URL.createObjectURL(file) : undefined
+}
 
 export const useFileQueue = (maxFiles = Number.POSITIVE_INFINITY) => {
     const [files, setFiles] = useState<PendingUploadFile[]>([])
