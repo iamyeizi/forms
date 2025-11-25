@@ -4,8 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import FileUploader from '@/components/FileUploader'
 import StatusBanner from '@/components/StatusBanner'
+import UploadProgressModal from '@/components/UploadProgressModal'
 import { useFileQueue } from '@/hooks/useFileQueue'
-import type { UploadStatus } from '@/types/uploads'
+import type { UploadStatus, FileUploadState } from '@/types/uploads'
 
 const formSchema = z.object({
     fullName: z.string().min(2, 'Tu nombre debe tener al menos 2 caracteres.').max(120, 'Mantén el nombre debajo de 120 caracteres.'),
@@ -22,6 +23,9 @@ type FormValues = z.infer<typeof formSchema>
 const WeddingForm = () => {
     const [status, setStatus] = useState<UploadStatus | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [uploadProgress, setUploadProgress] = useState<Record<string, FileUploadState>>({})
+    const [showProgressModal, setShowProgressModal] = useState(false)
+
     const { files, addFiles, removeFile, remainingSlots, clearFiles } = useFileQueue()
 
     const uploadEndpoint = useMemo(() => import.meta.env.VITE_UPLOAD_ENDPOINT ?? '/.netlify/functions/upload', [])
@@ -43,42 +47,61 @@ const WeddingForm = () => {
         setIsSubmitting(true)
         setStatus(null)
 
+        // Initialize progress
+        const initialProgress: Record<string, FileUploadState> = {}
+        files.forEach((f) => (initialProgress[f.id] = 'pending'))
+        setUploadProgress(initialProgress)
+
+        if (files.length > 0) {
+            setShowProgressModal(true)
+        }
+
         try {
             // 1. Subir archivos usando Resumable Uploads (Directo a Google)
-            const uploadPromises = files.map(async (entry) => {
-                // A. Pedir URL de subida al backend
-                const initRes = await fetch(uploadEndpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: entry.file.name,
-                        mimeType: entry.file.type,
-                        description: `${values.fullName} · ${values.message || 'Sin mensaje'}`,
-                    }),
+            const results = await Promise.all(
+                files.map(async (entry) => {
+                    setUploadProgress((prev) => ({ ...prev, [entry.id]: 'uploading' }))
+                    try {
+                        // A. Pedir URL de subida al backend
+                        const initRes = await fetch(uploadEndpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: entry.file.name,
+                                mimeType: entry.file.type,
+                                description: `${values.fullName} · ${values.message || 'Sin mensaje'}`,
+                            }),
+                        })
+
+                        if (!initRes.ok) {
+                            throw new Error(`Error iniciando subida para ${entry.file.name}`)
+                        }
+
+                        const { uploadUrl } = await initRes.json()
+
+                        // B. Subir el archivo directamente a Google
+                        const uploadRes = await fetch(uploadUrl, {
+                            method: 'PUT',
+                            body: entry.file,
+                        })
+
+                        if (!uploadRes.ok) {
+                            throw new Error(`Fallo al subir ${entry.file.name} a Drive`)
+                        }
+
+                        setUploadProgress((prev) => ({ ...prev, [entry.id]: 'success' }))
+                        return true
+                    } catch (error) {
+                        console.error(error)
+                        setUploadProgress((prev) => ({ ...prev, [entry.id]: 'error' }))
+                        return false
+                    }
                 })
+            )
 
-                if (!initRes.ok) {
-                    throw new Error(`Error iniciando subida para ${entry.file.name}`)
-                }
-
-                const { uploadUrl } = await initRes.json()
-
-                // B. Subir el archivo directamente a Google
-                const uploadRes = await fetch(uploadUrl, {
-                    method: 'PUT',
-                    body: entry.file,
-                })
-
-                if (!uploadRes.ok) {
-                    throw new Error(`Fallo al subir ${entry.file.name} a Drive`)
-                }
-            })
+            const allSuccess = results.every(Boolean)
 
             // 2. Si no hay archivos, podríamos querer guardar el mensaje igual.
-            // Por ahora, si no hay archivos, no hacemos nada con Drive, o podríamos crear un archivo de texto.
-            // Dado que el form pide archivos opcionalmente (según tu último cambio no, pero el uploader sí),
-            // asumimos que si hay texto y no archivos, queremos guardarlo.
-
             if (files.length === 0 && (values.fullName || values.message)) {
                 // Caso borde: Solo texto. Creamos un .txt
                 const initRes = await fetch(uploadEndpoint, {
@@ -98,16 +121,26 @@ const WeddingForm = () => {
                         body: `Nombre: ${values.fullName}\nMensaje: ${values.message}`,
                     })
                 }
-            } else {
-                await Promise.all(uploadPromises)
             }
 
-            setStatus({
-                type: 'success',
-                message: '¡Listo! Tus datos han sido enviados con éxito.',
-            })
-            reset()
-            clearFiles()
+            if (files.length > 0) {
+                if (allSuccess) {
+                    await new Promise((resolve) => setTimeout(resolve, 800))
+                    setShowProgressModal(false)
+                    setStatus({
+                        type: 'success',
+                        message: '¡Listo! Tus datos han sido enviados con éxito.',
+                    })
+                    reset()
+                    clearFiles()
+                }
+            } else {
+                setStatus({
+                    type: 'success',
+                    message: '¡Listo! Tus datos han sido enviados con éxito.',
+                })
+                reset()
+            }
         } catch (error) {
             console.error(error)
             const message = error instanceof Error ? error.message : 'No pudimos subir tus archivos.'
@@ -146,6 +179,14 @@ const WeddingForm = () => {
                 </button>
                 <StatusBanner status={status} onDismiss={() => setStatus(null)} />
             </div>
+
+            <UploadProgressModal
+                files={files}
+                progress={uploadProgress}
+                isOpen={showProgressModal}
+                onClose={() => setShowProgressModal(false)}
+                isFinished={!isSubmitting}
+            />
         </form>
     )
 }
