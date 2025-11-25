@@ -29,6 +29,7 @@ const WeddingForm = () => {
     const { files, addFiles, removeFile, remainingSlots, clearFiles } = useFileQueue()
 
     const uploadEndpoint = useMemo(() => import.meta.env.VITE_UPLOAD_ENDPOINT ?? '/.netlify/functions/upload', [])
+    const emailEndpoint = useMemo(() => import.meta.env.VITE_EMAIL_ENDPOINT ?? '/.netlify/functions/send-email', [])
 
     const {
         register,
@@ -125,6 +126,18 @@ const WeddingForm = () => {
 
             if (files.length > 0) {
                 if (allSuccess) {
+                    // Send email notification
+                    fetch(emailEndpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fullName: values.fullName,
+                            message: values.message,
+                            fileCount: files.length,
+                            fileNames: files.map(f => f.file.name)
+                        }),
+                    }).catch(console.error)
+
                     await new Promise((resolve) => setTimeout(resolve, 800))
                     setShowProgressModal(false)
                     setStatus({
@@ -135,6 +148,18 @@ const WeddingForm = () => {
                     clearFiles()
                 }
             } else {
+                // Send email notification for text only
+                fetch(emailEndpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fullName: values.fullName,
+                        message: values.message,
+                        fileCount: 0,
+                        fileNames: []
+                    }),
+                }).catch(console.error)
+
                 setStatus({
                     type: 'success',
                     message: '¡Listo! Tus datos han sido enviados con éxito.',
