@@ -9,7 +9,12 @@ import type { UploadStatus } from '@/types/uploads'
 
 const formSchema = z.object({
     fullName: z.string().min(2, 'Tu nombre debe tener al menos 2 caracteres.').max(120, 'Mantén el nombre debajo de 120 caracteres.'),
-    message: z.string().min(10, 'Escribe al menos 10 caracteres.').max(400, 'El mensaje puede tener hasta 400 caracteres.'),
+    message: z
+        .string()
+        .max(400, 'El mensaje puede tener hasta 400 caracteres.')
+        .refine((value) => value.trim().length === 0 || value.trim().length >= 10, {
+            message: 'Si vas a dejar un mensajito, escribí al menos 10 caracteres.',
+        }),
 })
 
 type FormValues = z.infer<typeof formSchema>
