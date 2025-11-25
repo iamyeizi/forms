@@ -107,16 +107,23 @@ const FileUploader = ({ files, onFilesAdded, onRemove, onClear, remainingSlots, 
     }
 
     useEffect(() => {
-        if (!isListExpanded) return
+        if (isListExpanded) {
+            // Prevent background scrolling
+            document.body.style.overflow = 'hidden'
 
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setIsListExpanded(false)
+            const handleKeyDown = (event: KeyboardEvent) => {
+                if (event.key === 'Escape') {
+                    setIsListExpanded(false)
+                }
+            }
+
+            window.addEventListener('keydown', handleKeyDown)
+
+            return () => {
+                window.removeEventListener('keydown', handleKeyDown)
+                document.body.style.overflow = ''
             }
         }
-
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
     }, [isListExpanded])
 
     return (
